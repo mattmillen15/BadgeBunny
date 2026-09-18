@@ -1,10 +1,13 @@
 package com.badgebunny
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -19,6 +22,7 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.badgebunny.bt.Pm3Ble
 import com.badgebunny.bt.Pm3Bluetooth
 import com.badgebunny.net.RelayLink
 import com.badgebunny.relay.RelayEngine
@@ -42,13 +46,16 @@ class MainActivity : AppCompatActivity() {
 
     private var btDevices: List<BluetoothDevice> = emptyList()
     private var usbDrivers: List<UsbSerialDriver> = emptyList()
+    private var bleDevices: MutableList<BluetoothDevice> = mutableListOf()
+    @Volatile private var bleScanning = false
+    private var bleScanCallback: ScanCallback? = null
     private val REQ = 42
     private var pendingPerm: (() -> Unit)? = null
     private var pendingUsb: (() -> Unit)? = null
     private val ACTION_USB = "com.badgebunny.USB_PERMISSION"
 
     private lateinit var spinnerDevices: Spinner
-    private lateinit var spinnerCard: Spinner
+    private lateinit var editPeer: EditText
     private lateinit var txtPm3: TextView
     private lateinit var txtStatus: TextView
     private lateinit var txtLog: TextView
@@ -59,7 +66,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun usbManager() = getSystemService(Context.USB_SERVICE) as UsbManager
     private fun isUsb() = findViewById<RadioButton>(R.id.radUsb).isChecked
-    private fun tailscaleSelected() = findViewById<RadioButton>(R.id.radNetTs).isChecked
+    private fun isBle() = findViewById<RadioButton>(R.id.radBle).isChecked
+    private fun isCardSide() = findViewById<RadioButton>(R.id.radReader).isChecked
 
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
@@ -75,7 +83,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         spinnerDevices = findViewById(R.id.spinnerDevices)
-        spinnerCard = findViewById(R.id.spinnerCard)
+        editPeer = findViewById(R.id.editPeer)
         txtPm3 = findViewById(R.id.txtPm3)
         txtStatus = findViewById(R.id.txtStatus)
         txtLog = findViewById(R.id.txtLog)
@@ -84,25 +92,24 @@ class MainActivity : AppCompatActivity() {
         logScroll = findViewById(R.id.logScroll)
         btnStart = findViewById(R.id.btnStart)
 
-        spinnerCard.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-            listOf("SEOS (tagType 12)", "DESFire EV1 (tagType 3)"))
-
         findViewById<Button>(R.id.btnRefresh).setOnClickListener { refreshDevices() }
         findViewById<Button>(R.id.btnConnectPm3).setOnClickListener { connectPm3() }
         btnStart.setOnClickListener { toggleRelay() }
-        findViewById<RadioButton>(R.id.radBt).setOnCheckedChangeListener { _, c -> if (c) refreshDevices() }
-        findViewById<RadioButton>(R.id.radUsb).setOnCheckedChangeListener { _, c -> if (c) refreshDevices() }
-        findViewById<RadioButton>(R.id.radNetTs).setOnCheckedChangeListener { _, c -> if (c) showMyIps() }
-        findViewById<RadioButton>(R.id.radNetWifi).setOnCheckedChangeListener { _, c -> if (c) showMyIps() }
+
+        findViewById<RadioButton>(R.id.radBt).setOnCheckedChangeListener { _, c -> if (c) { stopBleScan(); refreshDevices() } }
+        findViewById<RadioButton>(R.id.radBle).setOnCheckedChangeListener { _, c -> if (c) refreshDevices() else stopBleScan() }
+        findViewById<RadioButton>(R.id.radUsb).setOnCheckedChangeListener { _, c -> if (c) { stopBleScan(); refreshDevices() } }
+        findViewById<RadioGroup>(R.id.roleGroup).setOnCheckedChangeListener { _, _ -> onRoleChanged() }
 
         ContextCompat.registerReceiver(this, usbReceiver, IntentFilter(ACTION_USB), ContextCompat.RECEIVER_NOT_EXPORTED)
 
-        showMyIps()
+        onRoleChanged()
         ensureBtPermsThen { refreshDevices() }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        stopBleScan()
         try { unregisterReceiver(usbReceiver) } catch (_: Exception) {}
     }
 
@@ -114,14 +121,25 @@ class MainActivity : AppCompatActivity() {
     private fun peer(s: String) = main.post { txtPeerStatus.text = "peer: $s" }
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
+    private fun onRoleChanged() {
+        val card = isCardSide()
+        editPeer.hint = if (card) "Not needed (card side auto-listens)" else "Card-side phone's IP"
+        showMyIps()
+    }
+
     // ---------- device discovery ----------
     private fun refreshDevices() {
-        if (isUsb()) refreshUsb() else ensureBtPermsThen { refreshBt() }
+        when {
+            isBle() -> ensureBtPermsThen { refreshBle() }
+            isUsb() -> refreshUsb()
+            else -> ensureBtPermsThen { refreshBt() }
+        }
     }
 
     private fun adapter(): BluetoothAdapter? =
         (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
 
+    @SuppressLint("MissingPermission")
     private fun refreshBt() {
         val a = adapter() ?: run { toast("No Bluetooth"); return }
         try { btDevices = a.bondedDevices?.toList() ?: emptyList() }
@@ -132,9 +150,56 @@ class MainActivity : AppCompatActivity() {
         log("bluetooth: ${btDevices.size} paired device(s)")
     }
 
+    @SuppressLint("MissingPermission")
+    private fun refreshBle() {
+        val a = adapter() ?: run { toast("No Bluetooth"); return }
+        val scanner = a.bluetoothLeScanner ?: run { toast("BLE scanner unavailable"); return }
+        stopBleScan()
+        bleDevices.clear()
+        val cb = object : ScanCallback() {
+            override fun onScanResult(type: Int, result: ScanResult) {
+                val d = result.device
+                if (bleDevices.none { it.address == d.address }) {
+                    bleDevices.add(d)
+                    main.post { updateBleSpinner() }
+                }
+            }
+        }
+        bleScanCallback = cb; bleScanning = true
+        scanner.startScan(cb)
+        log("BLE: scanning (5 s)…")
+        updateBleSpinner()
+        main.postDelayed({
+            if (bleScanning) {
+                try { scanner.stopScan(cb) } catch (_: Exception) {}
+                bleScanning = false; bleScanCallback = null
+                log("BLE: scan done, ${bleDevices.size} device(s)")
+            }
+        }, 5000)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun stopBleScan() {
+        val cb = bleScanCallback ?: return
+        if (bleScanning) {
+            try { adapter()?.bluetoothLeScanner?.stopScan(cb) } catch (_: Exception) {}
+            bleScanning = false; bleScanCallback = null
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun updateBleSpinner() {
+        val names = bleDevices.map { d ->
+            val n = try { d.name } catch (_: SecurityException) { null }
+            "${n ?: "Unknown"} [${d.address}]"
+        }
+        spinnerDevices.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            if (names.isEmpty()) listOf("(scanning for BLE devices…)") else names)
+    }
+
     private fun customProber(): UsbSerialProber {
         val t = UsbSerialProber.getDefaultProbeTable()
-        t.addProduct(0x9ac4, 0x4b8f, CdcAcmSerialDriver::class.java) // Proxmark3 RDV4 / PM5
+        t.addProduct(0x9ac4, 0x4b8f, CdcAcmSerialDriver::class.java)
         return UsbSerialProber(t)
     }
 
@@ -145,13 +210,41 @@ class MainActivity : AppCompatActivity() {
             "${dev.productName ?: "USB"} [${String.format("%04x:%04x", dev.vendorId, dev.productId)}] ${d.ports.size}p"
         }
         spinnerDevices.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-            if (names.isEmpty()) listOf("(no USB serial — plug the PM5 via OTG, then Refresh)") else names)
+            if (names.isEmpty()) listOf("(no USB serial — plug the PM5 via OTG, then Scan)") else names)
         log("usb: ${usbDrivers.size} serial device(s)")
     }
 
     // ---------- connect ----------
-    private fun connectPm3() { if (isUsb()) connectUsb() else connectBt() }
+    private fun connectPm3() {
+        when {
+            isBle() -> connectBle()
+            isUsb() -> connectUsb()
+            else -> connectBt()
+        }
+    }
 
+    private fun connectBle() {
+        if (bleDevices.isEmpty()) { toast("Tap Scan to find BLE devices first"); return }
+        val idx = spinnerDevices.selectedItemPosition
+        if (idx !in bleDevices.indices) { toast("Pick a device"); return }
+        val dev = bleDevices[idx]
+        stopBleScan()
+        txtPm3.text = "connecting (BLE)…"
+        Thread {
+            try {
+                val ble = Pm3Ble(this@MainActivity)
+                ble.connect(dev)
+                link = ble
+                main.post { txtPm3.text = "connected (BLE)" }
+                log("PM3 connected over BLE")
+            } catch (e: Exception) {
+                main.post { txtPm3.text = "connect failed" }
+                log("BLE connect error: ${e.message}")
+            }
+        }.start()
+    }
+
+    @SuppressLint("MissingPermission")
     private fun connectBt() {
         if (btDevices.isEmpty()) { toast("Pair the Proxmark (PM3_RDV4.0, PIN 1234) first"); return }
         val idx = spinnerDevices.selectedItemPosition
@@ -173,7 +266,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectUsb() {
-        if (usbDrivers.isEmpty()) { toast("No USB device — Refresh with the PM5 plugged in"); return }
+        if (usbDrivers.isEmpty()) { toast("No USB device — Scan with the PM5 plugged in"); return }
         val idx = spinnerDevices.selectedItemPosition
         if (idx !in usbDrivers.indices) { toast("Pick a device"); return }
         val driver = usbDrivers[idx]
@@ -192,7 +285,7 @@ class MainActivity : AppCompatActivity() {
         txtPm3.text = "connecting (USB)…"
         Thread {
             try {
-                val portIndex = (driver.ports.size - 1).coerceAtLeast(0) // PM5 comms is the higher CDC
+                val portIndex = (driver.ports.size - 1).coerceAtLeast(0)
                 val u = Pm3Usb(usbManager(), driver, portIndex)
                 u.open()
                 link = u
@@ -210,13 +303,13 @@ class MainActivity : AppCompatActivity() {
         if (worker != null) { stopRelay(); return }
         val l = link
         if (l == null || !l.isConnected()) { toast("Connect the Proxmark first"); return }
-        val role = if (findViewById<RadioButton>(R.id.radReader).isChecked) Role.READER else Role.EMULATOR
-        val listen = findViewById<CompoundButton>(R.id.chkListen).isChecked
-        val port = findViewById<EditText>(R.id.editPort).text.toString().trim().toIntOrNull() ?: 8099
-        val peerStr = findViewById<EditText>(R.id.editPeer).text.toString().trim()
-        val fwi = findViewById<EditText>(R.id.editFwi).text.toString().trim().toIntOrNull() ?: 14
-        val sfgi = findViewById<EditText>(R.id.editSfgi).text.toString().trim().toIntOrNull() ?: 0
-        val tagType = if (spinnerCard.selectedItemPosition == 1) 3 else 12
+
+        val role = if (isCardSide()) Role.READER else Role.EMULATOR
+        val listen = isCardSide()
+        val port = 8099
+        val peerRaw = editPeer.text.toString().trim()
+
+        if (!listen && peerRaw.isEmpty()) { toast("Enter the card-side phone's IP"); return }
 
         val n = RelayLink()
         net = n
@@ -228,10 +321,11 @@ class MainActivity : AppCompatActivity() {
                     status("listening on $port…"); log("net: listening on $port (waiting for peer)"); peer("waiting…")
                     n.listen(port)
                 } else {
-                    if (!peerStr.contains(":")) throw IllegalArgumentException("peer must be host:port")
-                    val h = peerStr.substringBeforeLast(":")
-                    val p = peerStr.substringAfterLast(":").toIntOrNull() ?: port
-                    // auto-reconnect: keep trying until the peer's listener is up
+                    val h: String; val p: Int
+                    if (peerRaw.contains(":")) {
+                        h = peerRaw.substringBeforeLast(":")
+                        p = peerRaw.substringAfterLast(":").toIntOrNull() ?: port
+                    } else { h = peerRaw; p = port }
                     var ok = false
                     while (relayRunning && !ok) {
                         try { status("connecting to $h:$p…"); n.connect(h, p, 4000); ok = true }
@@ -240,7 +334,7 @@ class MainActivity : AppCompatActivity() {
                     if (!ok) throw InterruptedException("stopped")
                 }
                 log("net: peer connected"); peer("connected"); status("relaying ($role)")
-                val eng = RelayEngine(l, n, role, tagType, fwi, sfgi, ::log) { c -> status("relaying ($role) | APDUs: $c") }
+                val eng = RelayEngine(l, n, role, 12, 14, 0, ::log) { c -> status("relaying ($role) | APDUs: $c") }
                 engine = eng
                 eng.run()
             } catch (e: Exception) {
@@ -271,7 +365,7 @@ class MainActivity : AppCompatActivity() {
                 if (!nif.isUp || nif.isLoopback) continue
                 for (a in nif.inetAddresses) {
                     val h = a.hostAddress ?: continue
-                    if (a.isLoopbackAddress || h.contains(':')) continue // IPv4 only
+                    if (a.isLoopbackAddress || h.contains(':')) continue
                     val ts = nif.name.contains("tailscale", true) || h.startsWith("100.")
                     out.add(IfIp(nif.name, h, ts))
                 }
@@ -282,15 +376,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun showMyIps() {
         val ips = listIps()
-        val txt = if (tailscaleSelected()) {
-            val ts = ips.firstOrNull { it.tailscale }?.ip
-            if (ts != null) "this device (Tailscale): $ts  →  give this to the peer"
-            else "Tailscale not up — open the Tailscale app and sign in"
-        } else {
-            val wifi = ips.firstOrNull { !it.tailscale && it.iface.startsWith("wlan") }?.ip
-                ?: ips.firstOrNull { !it.tailscale }?.ip
-            if (wifi != null) "this device (Wi-Fi): $wifi  →  give this to the peer"
-            else "no Wi-Fi IP — join a network first"
+        val ts = ips.firstOrNull { it.tailscale }?.ip
+        val wifi = ips.firstOrNull { !it.tailscale }?.ip
+        val card = isCardSide()
+        val best = ts ?: wifi
+        val txt = when {
+            best == null -> "No network — connect to Wi-Fi or start Tailscale"
+            card -> "Your IP: $best — give this to the other phone (port 8099)"
+            else -> buildString {
+                append("Your IP: ")
+                val parts = mutableListOf<String>()
+                if (ts != null) parts.add("Tailscale $ts")
+                if (wifi != null) parts.add("Wi-Fi $wifi")
+                append(parts.joinToString(" · "))
+            }
         }
         main.post { txtMyIps.text = txt }
     }

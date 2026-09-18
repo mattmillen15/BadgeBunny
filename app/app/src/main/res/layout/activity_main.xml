@@ -36,20 +36,41 @@
             android:layout_height="wrap_content"
             android:padding="12dp">
 
-            <!-- 1 · Proxmark transport + device -->
+            <!-- 1 · Role -->
             <com.google.android.material.card.MaterialCardView style="@style/CsCard">
                 <LinearLayout android:orientation="vertical"
                     android:layout_width="match_parent" android:layout_height="wrap_content">
                     <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="1 · PROXMARK" />
+                        android:layout_height="wrap_content" android:text="1 · YOUR ROLE" />
+                    <RadioGroup android:id="@+id/roleGroup" android:orientation="vertical"
+                        android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <RadioButton android:id="@+id/radReader"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Card side — reads the real badge" android:checked="true" />
+                        <RadioButton android:id="@+id/radEmulator"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Reader side — goes to the door" />
+                    </RadioGroup>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 2 · Proxmark -->
+            <com.google.android.material.card.MaterialCardView style="@style/CsCard">
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="2 · PROXMARK" />
                     <RadioGroup android:id="@+id/transportGroup" android:orientation="horizontal"
                         android:layout_width="match_parent" android:layout_height="wrap_content">
                         <RadioButton android:id="@+id/radBt"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Bluetooth (RDV4)" android:checked="true" />
+                            android:text="BT (RDV4)" android:checked="true" />
+                        <RadioButton android:id="@+id/radBle"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp" android:text="BLE (PM5)" />
                         <RadioButton android:id="@+id/radUsb"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp" android:text="USB (PM5)" />
+                            android:layout_marginStart="8dp" android:text="USB (PM5)" />
                     </RadioGroup>
                     <Spinner android:id="@+id/spinnerDevices"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -61,7 +82,7 @@
                             android:id="@+id/btnRefresh"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Refresh" />
+                            android:text="Scan" />
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnConnectPm3"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -73,87 +94,25 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 2 · Role -->
+            <!-- 3 · Peer -->
             <com.google.android.material.card.MaterialCardView style="@style/CsCard">
                 <LinearLayout android:orientation="vertical"
                     android:layout_width="match_parent" android:layout_height="wrap_content">
                     <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="2 · ROLE" />
-                    <RadioGroup android:id="@+id/roleGroup" android:orientation="vertical"
-                        android:layout_width="match_parent" android:layout_height="wrap_content">
-                        <RadioButton android:id="@+id/radReader"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Reader — Proxmark at the real card" android:checked="true" />
-                        <RadioButton android:id="@+id/radEmulator"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Emulator — Proxmark at the target reader" />
-                    </RadioGroup>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- 3 · Peer link -->
-            <com.google.android.material.card.MaterialCardView style="@style/CsCard">
-                <LinearLayout android:orientation="vertical"
-                    android:layout_width="match_parent" android:layout_height="wrap_content">
-                    <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="3 · PEER LINK" />
-                    <RadioGroup android:id="@+id/netGroup" android:orientation="horizontal"
-                        android:layout_width="match_parent" android:layout_height="wrap_content">
-                        <RadioButton android:id="@+id/radNetTs"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Tailscale" android:checked="true" />
-                        <RadioButton android:id="@+id/radNetWifi"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp" android:text="Wi-Fi (LAN)" />
-                    </RadioGroup>
+                        android:layout_height="wrap_content" android:text="3 · CONNECT TO PEER" />
                     <TextView android:id="@+id/txtMyIps" style="@style/CsLabel"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp" android:textSize="12sp"
-                        android:textColor="@color/cs_accent" android:text="this device: …" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/chkListen"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="Listen (this device is the server)" android:textColor="@color/cs_text" />
-                    <EditText android:id="@+id/editPort"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp" android:hint="listen port" android:inputType="number"
-                        android:text="8099" android:textColor="@color/cs_text" android:textColorHint="@color/cs_muted" />
+                        android:textSize="12sp" android:textColor="@color/cs_accent"
+                        android:text="detecting IPs…" />
                     <EditText android:id="@+id/editPeer"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp" android:hint="peer host:port (e.g. 100.x.y.z:8099)"
-                        android:inputType="text" android:textColor="@color/cs_text" android:textColorHint="@color/cs_muted" />
+                        android:layout_marginTop="8dp"
+                        android:hint="Other phone's IP"
+                        android:inputType="text" android:textColor="@color/cs_text"
+                        android:textColorHint="@color/cs_muted" />
                     <TextView android:id="@+id/txtPeerStatus" style="@style/CsLabel"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp" android:text="peer: —" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- 4 · Card params -->
-            <com.google.android.material.card.MaterialCardView style="@style/CsCard">
-                <LinearLayout android:orientation="vertical"
-                    android:layout_width="match_parent" android:layout_height="wrap_content">
-                    <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="4 · CARD PARAMS (EMULATOR SIDE)" />
-                    <Spinner android:id="@+id/spinnerCard"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:backgroundTint="@color/cs_muted" />
-                    <LinearLayout android:orientation="horizontal"
-                        android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp" android:gravity="center_vertical">
-                        <TextView style="@style/CsLabel" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:text="FWI" />
-                        <EditText android:id="@+id/editFwi"
-                            android:layout_width="56dp" android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp" android:inputType="number" android:text="14"
-                            android:textColor="@color/cs_text" />
-                        <TextView style="@style/CsLabel" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:layout_marginStart="20dp" android:text="SFGI" />
-                        <EditText android:id="@+id/editSfgi"
-                            android:layout_width="56dp" android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp" android:inputType="number" android:text="0"
-                            android:textColor="@color/cs_text" />
-                    </LinearLayout>
+                        android:layout_marginTop="4dp" android:text="peer: —" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -165,7 +124,7 @@
 
             <TextView android:id="@+id/txtStatus" style="@style/CsLabel"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:gravity="center" android:text="idle · APDUs: 0" />
+                android:gravity="center" android:text="idle" />
 
             <com.google.android.material.card.MaterialCardView style="@style/CsCard"
                 android:layout_marginTop="12dp">

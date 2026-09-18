@@ -8,7 +8,7 @@ inflates the ATS Frame Waiting time (FWI) so the reader tolerates the round-trip
 
 ```
  real card ⇄ RDV4 (READ) ⇄ phone A ⇄── IP ──⇄ phone B ⇄ PM5 (CARD) ⇄ target reader
-               BT / USB                          USB
+               BT / USB                        BLE / USB
 ```
 
 ## Cardhopper serial protocol
@@ -23,13 +23,17 @@ Modes (host→PM3): `READ`, `CARD`, `RESTART`, `\xFF"END"`.
   RATS locally (ATS cooked with the supplied FWI) and relays post-handshake APDUs.
 
 ## Transports
-- Proxmark ↔ phone: Bluetooth-Classic SPP/RFCOMM (RDV4/BlueShark, primary) or USB-CDC (PM5,
-  secondary). Framing is shared in `CardhopperCodec`; `Pm3Link` abstracts the two.
+- Proxmark ↔ phone: three options, all sharing `CardhopperCodec` framing via the `Pm3Link` interface:
+  - **Bluetooth Classic SPP/RFCOMM** — RDV4 + BlueShark add-on (`Pm3Bluetooth`).
+  - **BLE GATT (Nordic UART Service)** — PM5 built-in BLE module (`Pm3Ble`). The module bridges
+    USART ↔ BLE transparently; the cardhopper serial framing runs unchanged over the NUS RX/TX
+    characteristics. MTU is negotiated up to 247 for throughput; writes are chunked to MTU-3.
+  - **USB-CDC** — PM5 over USB-OTG (`Pm3Usb`). Requires firmware built with `-DCARDHOPPER_USB`.
 - Phone ↔ phone: direct TCP, one side listens and one connects, over Tailscale or LAN. `TCP_NODELAY`
   is set and there is no relay-server hop; the connector auto-reconnects until the peer is up.
 
 ## App modules (`app/app/src/main/java/com/badgebunny/`)
-- `transport/` — `Pm3Link`, `CardhopperCodec`, `Pm3Usb`; `bt/Pm3Bluetooth`.
+- `transport/` — `Pm3Link`, `CardhopperCodec`, `Pm3Usb`; `bt/Pm3Bluetooth`, `bt/Pm3Ble`.
 - `net/RelayLink` — framed TCP between phones.
 - `relay/RelayEngine` — the READER and EMULATOR state machines.
 - `MainActivity` — UI.

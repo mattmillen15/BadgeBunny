@@ -12,7 +12,7 @@ is physically at the other phone. RDV4 side is Bluetooth, PM5 side is USB. Autho
 | | Reader side (at the card) | Emulator side (at the reader) |
 |---|---|---|
 | Phone | A | B |
-| Proxmark | RDV4 + BlueShark (paired `PM3_RDV4.0`, PIN 1234) | PM5 via USB-OTG |
+| Proxmark | RDV4 + BlueShark (paired `PM3_RDV4.0`, PIN 1234) | PM5 via BLE or USB-OTG |
 | Present | Seos card on the RDV4 antenna | PM5 to the door reader |
 
 Keep the BlueShark battery mid-charge and the card↔antenna coupling tight.
@@ -23,7 +23,9 @@ Phone A (RDV4 / Reader / listener):
 - Role Reader. Network Tailscale. Listen on, port 8099.
 
 Phone B (PM5 / Emulator / connector):
-- Plug the PM5 in via USB-OTG → Transport USB → Refresh → select it → Connect (grant USB permission).
+- **BLE (preferred)**: Transport BLE → Refresh (scans for 5 s) → select the PM5 → Connect.
+- **USB fallback**: Plug the PM5 in via USB-OTG → Transport USB → Refresh → select it → Connect
+  (grant USB permission).
 - Role Emulator. Card SEOS, FWI 14, SFGI 0.
 - Network Tailscale. Listen off. Peer = `<phone A 100.x>:8099`.
 
