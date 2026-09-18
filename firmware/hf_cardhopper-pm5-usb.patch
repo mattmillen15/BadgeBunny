@@ -1,0 +1,17 @@
+diff --git a/armsrc/Standalone/Makefile.hal b/armsrc/Standalone/Makefile.hal
+index 906f68c..0250f7d 100644
+--- a/armsrc/Standalone/Makefile.hal
++++ b/armsrc/Standalone/Makefile.hal
+@@ -168,7 +168,11 @@ ifneq ($(filter $(STANDALONE),$(STANDALONE_MODES)),)
+         STANDALONE_REQ_DEFS += -DWITH_FLASH
+     endif
+     ifneq ($(filter $(STANDALONE),$(STANDALONE_MODES_REQ_BT)),)
+-        STANDALONE_REQ_DEFS += -DWITH_FPC_USART_HOST
++        # CardShark: with -DCARDHOPPER_USB the relay runs over USB-CDC, not the FPC USART,
++        # so don't demand WITH_FPC_USART_HOST (lets HF_CARDHOPPER build on PLATFORM=PM5).
++        ifeq ($(findstring -DCARDHOPPER_USB,$(STANDALONE_PLATFORM_DEFS)),)
++            STANDALONE_REQ_DEFS += -DWITH_FPC_USART_HOST
++        endif
+     endif
+ else ifneq ($(STANDALONE),)
+     $(error Invalid STANDALONE: $(STANDALONE). $(KNOWN_DEFINITIONS))

@@ -1,0 +1,15 @@
+# Android / Gradle
+app/.gradle/
+app/build/
+app/app/build/
+app/local.properties
+*.apk
+*.aab
+.idea/
+*.iml
+# firmware build outputs
+*.elf
+*.bin
+*.s19
+.DS_Store
+.kotlin/

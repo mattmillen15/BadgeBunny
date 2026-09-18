@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cs_bg">#0E1420</color>
+    <color name="cs_surface">#18202E</color>
+    <color name="cs_surface_alt">#1F2A3A</color>
+    <color name="cs_primary">#3D8BFF</color>
+    <color name="cs_on_primary">#FFFFFF</color>
+    <color name="cs_accent">#2FD3A6</color>
+    <color name="cs_text">#E8EEF7</color>
+    <color name="cs_muted">#93A1B5</color>
+    <color name="cs_danger">#FF5C6C</color>
+    <color name="cs_log_bg">#0A0F18</color>
+</resources>
