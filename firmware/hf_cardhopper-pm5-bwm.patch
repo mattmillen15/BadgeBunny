@@ -1,0 +1,50 @@
+diff --git a/armsrc/Standalone/hf_cardhopper.c b/armsrc/Standalone/hf_cardhopper.c
+--- a/armsrc/Standalone/hf_cardhopper.c
++++ b/armsrc/Standalone/hf_cardhopper.c
+@@ -30,8 +30,19 @@
+ #include "usart.h"
+ #include "cmd.h"
+ #include "usb_cdc_apis.h"
+ #include "usb_read_ng.h"
+
++// To enable CARDHOPPER_BWM (relay over BLE via BWM module), add:
++// STANDALONE_PLATFORM_DEFS+=-DCARDHOPPER_BWM
++// Requires PLATFORM_EXTRAS=BWM in Makefile.platform.
++
++#if defined(CARDHOPPER_BWM)
++#include "bwm_forward.h"
++#define cardhopper_write bwm_fwd_writebuffer_sync
++#define cardhopper_read bwm_read_ng
++#define cardhopper_data_available bwm_fwd_rxdata_available
++
++#elif defined(CARDHOPPER_USB)
+ // To enable CARDHOPPER_USB, add the following line in your Makefile.platform
+ // STANDALONE_PLATFORM_DEFS+=-DCARDHOPPER_USB
+
+-#ifdef CARDHOPPER_USB
+ #define cardhopper_write usb_write
+ #define cardhopper_read usb_read_ng
+ bool cardhopper_data_available(void);
+@@ -42,6 +53,7 @@
+ #define cardhopper_write usart_writebuffer_sync
+ #define cardhopper_read usart_read_ng
+ #define cardhopper_data_available usart_rxdata_available
++
+ #endif
+
+ void ModInfo(void) {
+@@ -85,10 +97,14 @@
+ void RunMod(void) {
+     // Ensure debug logs don't polute stream
+-#ifdef CARDHOPPER_USB
++#if defined(CARDHOPPER_BWM)
++    // BWM mode: relay data flows over BWM BLE, debug logs go to USB
++    g_reply_via_usb = true;
++    g_reply_via_fpc = false;
++#elif defined(CARDHOPPER_USB)
+     g_reply_via_usb = false;
+     g_reply_via_fpc = true;
+ #else
+     g_reply_via_usb = true;
+     g_reply_via_fpc = false;
+ #endif

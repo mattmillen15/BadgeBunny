@@ -14,9 +14,9 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * BLE GATT transport to a Proxmark5 with a built-in BLE module (Nordic UART Service).
- * The BLE module bridges USART ↔ BLE transparently, so hf_cardhopper's serial framing
- * (CardhopperCodec) runs unchanged over the NUS RX/TX characteristics.
+ * BLE GATT transport to a Proxmark5 with BWM (Bluetooth Wireless Module, ESP32-C2).
+ * The BWM bridges UART4/app_com ↔ BLE using a custom GATT service (0xAE86) with a single
+ * bidirectional data characteristic (0xAE88: WRITE + WRITE_NO_RSP + NOTIFY).
  *
  * Contrast with Pm3Bluetooth, which uses Bluetooth Classic SPP/RFCOMM (RDV4 + BlueShark).
  */
@@ -24,16 +24,16 @@ import java.util.concurrent.TimeUnit
 class Pm3Ble(private val context: Context) : Pm3Link {
 
     companion object {
-        val NUS_SERVICE: UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
-        val NUS_RX: UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
-        val NUS_TX: UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+        // PM5 BWM custom GATT profile (NOT Nordic UART Service)
+        val BWM_SERVICE: UUID = UUID.fromString("0000AE86-0000-1000-8000-00805F9B34FB")
+        val BWM_DATA: UUID = UUID.fromString("0000AE88-0000-1000-8000-00805F9B34FB")
         val CCC: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private const val TARGET_MTU = 247
         private const val TIMEOUT_SEC = 12L
     }
 
     private var gatt: BluetoothGatt? = null
-    private var rxChar: BluetoothGattCharacteristic? = null
+    private var dataChar: BluetoothGattCharacteristic? = null
     private var codec: CardhopperCodec? = null
     private val pipeIn = PipedInputStream(1 shl 16)
     private val pipeOut = PipedOutputStream(pipeIn)
@@ -63,13 +63,13 @@ class Pm3Ble(private val context: Context) : Pm3Link {
 
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) { setupLatch.countDown(); return }
-            val svc = g.getService(NUS_SERVICE)
+            val svc = g.getService(BWM_SERVICE)
             if (svc == null) { setupLatch.countDown(); return }
-            rxChar = svc.getCharacteristic(NUS_RX)
-            val tx = svc.getCharacteristic(NUS_TX)
-            if (rxChar == null || tx == null) { setupLatch.countDown(); return }
-            g.setCharacteristicNotification(tx, true)
-            val d = tx.getDescriptor(CCC)
+            val ch = svc.getCharacteristic(BWM_DATA)
+            if (ch == null) { setupLatch.countDown(); return }
+            dataChar = ch
+            g.setCharacteristicNotification(ch, true)
+            val d = ch.getDescriptor(CCC)
             if (d == null) {
                 connected = true; setupLatch.countDown(); return
             }
@@ -101,7 +101,7 @@ class Pm3Ble(private val context: Context) : Pm3Link {
         setupLatch = CountDownLatch(1)
         gatt = device.connectGatt(context, false, cb, BluetoothDevice.TRANSPORT_LE)
         if (!setupLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS)) throw IOException("BLE connect timed out")
-        if (!connected) throw IOException("BLE setup failed (NUS service not found?)")
+        if (!connected) throw IOException("BLE setup failed (BWM service 0xAE86 not found?)")
 
         val out = object : OutputStream() {
             override fun write(b: Int) = bleWrite(byteArrayOf(b.toByte()))
@@ -113,13 +113,13 @@ class Pm3Ble(private val context: Context) : Pm3Link {
     @Suppress("DEPRECATION")
     private fun bleWrite(data: ByteArray) {
         val g = gatt ?: throw IOException("BLE disconnected")
-        val c = rxChar ?: throw IOException("no RX characteristic")
+        val c = dataChar ?: throw IOException("no data characteristic")
         val chunk = (mtu - 3).coerceAtLeast(20)
         var off = 0
         while (off < data.size) {
             val end = (off + chunk).coerceAtMost(data.size)
             c.value = data.copyOfRange(off, end)
-            c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
             writeLatch = CountDownLatch(1)
             if (!g.writeCharacteristic(c)) throw IOException("BLE write rejected")
             if (!writeLatch!!.await(TIMEOUT_SEC, TimeUnit.SECONDS)) throw IOException("BLE write timed out")
@@ -136,6 +136,6 @@ class Pm3Ble(private val context: Context) : Pm3Link {
         try { gatt?.disconnect() } catch (_: Exception) {}
         try { gatt?.close() } catch (_: Exception) {}
         try { pipeOut.close() } catch (_: Exception) {}
-        gatt = null; rxChar = null; codec = null
+        gatt = null; dataChar = null; codec = null
     }
 }
