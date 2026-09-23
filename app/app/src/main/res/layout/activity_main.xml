@@ -18,6 +18,7 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            app:navigationIcon="@drawable/bb_logo"
             app:title="BadgeBunny"
             app:subtitle="Seos relay · USB"
             app:titleTextColor="@color/cs_text"
@@ -41,25 +42,29 @@
                 <LinearLayout android:orientation="vertical"
                     android:layout_width="match_parent" android:layout_height="wrap_content">
                     <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="1 · YOUR ROLE" />
-                    <RadioGroup android:id="@+id/roleGroup" android:orientation="vertical"
+                        android:layout_height="wrap_content" android:text="ROLE" />
+                    <RadioGroup android:id="@+id/roleGroup" android:orientation="horizontal"
                         android:layout_width="match_parent" android:layout_height="wrap_content">
                         <RadioButton android:id="@+id/radReader"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Card side — reads the real badge" android:checked="true" />
+                            android:layout_width="0dp" android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="Card side" android:checked="true"
+                            android:textColor="@color/cs_text" android:buttonTint="@color/cs_accent" />
                         <RadioButton android:id="@+id/radEmulator"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Reader side — goes to the door" />
+                            android:layout_width="0dp" android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="Reader side"
+                            android:textColor="@color/cs_text" android:buttonTint="@color/cs_accent" />
                     </RadioGroup>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 2 · Proxmark (USB) -->
+            <!-- 2 · Proxmark -->
             <com.google.android.material.card.MaterialCardView style="@style/CsCard">
                 <LinearLayout android:orientation="vertical"
                     android:layout_width="match_parent" android:layout_height="wrap_content">
                     <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="2 · PROXMARK" />
+                        android:layout_height="wrap_content" android:text="PROXMARK" />
                     <Spinner android:id="@+id/spinnerTransport"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:backgroundTint="@color/cs_muted" />
@@ -74,14 +79,19 @@
                             android:id="@+id/btnRefresh"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Scan" />
+                            android:text="Scan"
+                            app:strokeColor="@color/cs_muted" />
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnConnectPm3"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:layout_marginStart="8dp" android:text="Connect" />
+                        <View android:id="@+id/pm3StatusDot"
+                            android:layout_width="8dp" android:layout_height="8dp"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/status_dot" />
                         <TextView android:id="@+id/txtPm3" style="@style/CsLabel"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp" android:text="not connected" />
+                            android:layout_marginStart="6dp" android:text="not connected" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -91,7 +101,7 @@
                 <LinearLayout android:orientation="vertical"
                     android:layout_width="match_parent" android:layout_height="wrap_content">
                     <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="3 · PEER (TAILSCALE)" />
+                        android:layout_height="wrap_content" android:text="PEER" />
                     <TextView android:id="@+id/txtMyIps" style="@style/CsLabel"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:textSize="12sp" android:textColor="@color/cs_accent"
@@ -114,26 +124,39 @@
                             android:id="@+id/btnDiscoverPeers"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="Discover" />
+                            android:text="Discover"
+                            app:strokeColor="@color/cs_muted" />
+                        <View android:id="@+id/peerStatusDot"
+                            android:layout_width="8dp" android:layout_height="8dp"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/status_dot" />
                         <TextView android:id="@+id/txtPeerStatus" style="@style/CsLabel"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp" android:text="peer: —" />
+                            android:layout_marginStart="6dp" android:text="peer: —" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Relay status -->
+            <TextView android:id="@+id/txtStatus"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:gravity="center" android:text="idle"
+                android:textColor="@color/cs_muted" android:textSize="13sp"
+                android:paddingTop="4dp" android:paddingBottom="4dp" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnStart"
                 android:layout_width="match_parent" android:layout_height="54dp"
-                android:layout_marginTop="4dp" android:layout_marginBottom="6dp"
-                android:text="START RELAY" android:textSize="15sp" app:cornerRadius="14dp" />
-
-            <TextView android:id="@+id/txtStatus" style="@style/CsLabel"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:gravity="center" android:text="idle" />
+                android:layout_marginBottom="6dp"
+                android:background="@drawable/btn_start_bg"
+                android:text="START RELAY" android:textSize="15sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:letterSpacing="0.05"
+                app:backgroundTint="@null" />
 
             <com.google.android.material.card.MaterialCardView style="@style/CsCard"
-                android:layout_marginTop="12dp">
+                android:layout_marginTop="6dp">
                 <LinearLayout android:orientation="vertical"
                     android:layout_width="match_parent" android:layout_height="wrap_content">
                     <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"

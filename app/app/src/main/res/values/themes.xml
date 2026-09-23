@@ -26,8 +26,8 @@
     <style name="CsSectionTitle">
         <item name="android:textColor">@color/cs_accent</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:textSize">13sp</item>
-        <item name="android:letterSpacing">0.04</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:letterSpacing">0.08</item>
         <item name="android:paddingBottom">8dp</item>
     </style>
 

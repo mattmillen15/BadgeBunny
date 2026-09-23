@@ -1,0 +1,64 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+
+    <!-- Left ear -->
+    <path android:fillColor="#3D8BFF"
+        android:pathData="M30,10 C28,4 32,0 36,0 C40,0 42,4 42,10 L42,34 C42,36 40,38 38,38 L34,38 C32,38 30,36 30,34 Z" />
+
+    <!-- Right ear -->
+    <path android:fillColor="#3D8BFF"
+        android:pathData="M54,10 C54,4 56,0 60,0 C64,0 66,4 64,10 L64,34 C64,36 62,38 60,38 L58,38 C56,38 54,36 54,34 Z" />
+
+    <!-- Inner left ear -->
+    <path android:fillColor="#2FD3A6"
+        android:pathData="M33,12 C32,7 34,4 36,4 C38,4 39,7 39,12 L39,30 C39,31 38,32 37,32 L35,32 C34,32 33,31 33,30 Z" />
+
+    <!-- Inner right ear -->
+    <path android:fillColor="#2FD3A6"
+        android:pathData="M57,12 C57,7 58,4 60,4 C62,4 63,7 63,12 L63,30 C63,31 62,32 61,32 L59,32 C58,32 57,31 57,30 Z" />
+
+    <!-- Head circle -->
+    <path android:fillColor="#3D8BFF"
+        android:pathData="M48,58 m-22,0 a22,22 0 1,1 44,0 a22,22 0 1,1 -44,0" />
+
+    <!-- Left eye -->
+    <path android:fillColor="#0E1420"
+        android:pathData="M40,54 m-3,0 a3,3 0 1,1 6,0 a3,3 0 1,1 -6,0" />
+
+    <!-- Right eye -->
+    <path android:fillColor="#0E1420"
+        android:pathData="M56,54 m-3,0 a3,3 0 1,1 6,0 a3,3 0 1,1 -6,0" />
+
+    <!-- Eye glints -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M39,52.5 m-1,0 a1,1 0 1,1 2,0 a1,1 0 1,1 -2,0" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M55,52.5 m-1,0 a1,1 0 1,1 2,0 a1,1 0 1,1 -2,0" />
+
+    <!-- Nose -->
+    <path android:fillColor="#2FD3A6"
+        android:pathData="M48,62 m-2.5,0 a2.5,2 0 1,1 5,0 a2.5,2 0 1,1 -5,0" />
+
+    <!-- Mouth -->
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#0E1420"
+        android:strokeWidth="1.2"
+        android:pathData="M48,64 L46,66 M48,64 L50,66" />
+
+    <!-- Badge/card in front -->
+    <path android:fillColor="#18202E"
+        android:strokeColor="#2FD3A6"
+        android:strokeWidth="1.5"
+        android:pathData="M36,74 L60,74 C62,74 63,75 63,77 L63,91 C63,93 62,94 60,94 L36,94 C34,94 33,93 33,91 L33,77 C33,75 34,74 36,74 Z" />
+
+    <!-- Badge stripe -->
+    <path android:fillColor="#3D8BFF"
+        android:pathData="M36,77 L60,77 L60,82 L36,82 Z" />
+
+    <!-- Badge chip -->
+    <path android:fillColor="#2FD3A6"
+        android:pathData="M38,85 L44,85 L44,90 L38,90 Z" />
+</vector>

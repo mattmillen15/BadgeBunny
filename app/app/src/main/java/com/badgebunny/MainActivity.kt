@@ -5,7 +5,9 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -84,6 +86,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var txtPeerStatus: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var btnStart: Button
+    private lateinit var pm3StatusDot: View
+    private lateinit var peerStatusDot: View
     private lateinit var btnDiscoverPeers: Button
 
     private fun usbManager() = getSystemService(Context.USB_SERVICE) as UsbManager
@@ -117,6 +121,8 @@ class MainActivity : AppCompatActivity() {
         logScroll = findViewById(R.id.logScroll)
         btnStart = findViewById(R.id.btnStart)
         btnDiscoverPeers = findViewById(R.id.btnDiscoverPeers)
+        pm3StatusDot = findViewById(R.id.pm3StatusDot)
+        peerStatusDot = findViewById(R.id.peerStatusDot)
 
         findViewById<Button>(R.id.btnRefresh).setOnClickListener { scanDevices() }
         findViewById<Button>(R.id.btnConnectPm3).setOnClickListener { connectSelected() }
@@ -159,9 +165,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try { link?.close() } catch (_: Exception) {}
         try { unregisterReceiver(usbReceiver) } catch (_: Exception) {}
         try { sppReceiver?.let { unregisterReceiver(it) } } catch (_: Exception) {}
         try { btAdapter()?.let { if (it.isDiscovering) it.cancelDiscovery() } } catch (_: Exception) {}
+        releaseLocks()
         BbLog.close()
     }
 
@@ -175,6 +183,24 @@ class MainActivity : AppCompatActivity() {
     private fun status(s: String) = main.post { txtStatus.text = s }
     private fun peer(s: String) = main.post { txtPeerStatus.text = "peer: $s" }
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
+
+    private fun setDotColor(dot: View, color: Int) = main.post {
+        val bg = dot.background
+        if (bg is android.graphics.drawable.GradientDrawable) bg.setColor(color)
+    }
+
+    private val COL_GREEN = 0xFF2FD3A6.toInt()
+    private val COL_RED   = 0xFFFF5C6C.toInt()
+    private val COL_AMBER = 0xFFFFA726.toInt()
+    private val COL_GREY  = 0xFF4A5568.toInt()
+
+    private fun pm3Dot(color: Int) = setDotColor(pm3StatusDot, color)
+    private fun peerDot(color: Int) = setDotColor(peerStatusDot, color)
+
+    private fun setBtnRelay(running: Boolean) = main.post {
+        btnStart.text = if (running) "STOP RELAY" else "START RELAY"
+        btnStart.setBackgroundResource(if (running) R.drawable.btn_stop_bg else R.drawable.btn_start_bg)
+    }
 
     private fun onRoleChanged() {
         val card = isCardSide()
@@ -311,7 +337,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openUsb(driver: UsbSerialDriver) {
-        txtPm3.text = "connecting…"
+        txtPm3.text = "connecting…"; pm3Dot(COL_AMBER)
         Thread {
             try {
                 link?.close()
@@ -321,9 +347,11 @@ class MainActivity : AppCompatActivity() {
                 u.open()
                 link = u
                 main.post { txtPm3.text = "connected (USB p$portIndex)" }
+                pm3Dot(COL_GREEN)
                 log("PM3 connected (USB port $portIndex)")
             } catch (e: Exception) {
                 main.post { txtPm3.text = "connect failed" }
+                pm3Dot(COL_RED)
                 log("USB error: ${e.message}")
             }
         }.start()
@@ -462,17 +490,33 @@ class MainActivity : AppCompatActivity() {
         val scanner = a.bluetoothLeScanner ?: run { toast("No BLE scanner"); return }
         toast("BLE scanning 8s…"); log("bt: BLE scanning 8s…")
         val found = LinkedHashMap<String, BluetoothDevice>()
+        val rssiMap = HashMap<String, Int>()
         val cb = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, r: ScanResult) { found[r.device.address] = r.device }
+            override fun onScanResult(callbackType: Int, r: ScanResult) {
+                found[r.device.address] = r.device
+                rssiMap[r.device.address] = r.rssi
+            }
             override fun onScanFailed(errorCode: Int) { log("bt: BLE scan failed code=$errorCode") }
         }
         try { scanner.startScan(cb) } catch (e: Exception) { log("bt: ${e.message}"); return }
         main.postDelayed({
             try { scanner.stopScan(cb) } catch (_: Exception) {}
-            btDevices = found.values.toList()
-            val names = btDevices.map { "${(try { it.name } catch (_: Exception) { null }) ?: "?"} [${it.address}]" }
+            // Sort: named devices first (PM5 = "Proxmark5"), then by RSSI descending
+            btDevices = found.values.sortedWith(compareBy<BluetoothDevice> {
+                val name = try { it.name } catch (_: Exception) { null }
+                when {
+                    name?.contains("Proxmark", ignoreCase = true) == true -> 0
+                    name != null -> 1
+                    else -> 2
+                }
+            }.thenByDescending { rssiMap[it.address] ?: -999 })
+            val names = btDevices.map {
+                val name = (try { it.name } catch (_: Exception) { null }) ?: "?"
+                val rssi = rssiMap[it.address]?.let { r -> " (${r}dBm)" } ?: ""
+                "$name [${it.address}]$rssi"
+            }
             spinnerDevices.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-                if (names.isEmpty()) listOf("(no BLE devices found — power the PM5)") else names)
+                if (names.isEmpty()) listOf("(no BLE devices — power-cycle the PM5)") else names)
             log("bt: ${btDevices.size} BLE device(s)")
         }, 8000)
     }
@@ -483,7 +527,7 @@ class MainActivity : AppCompatActivity() {
         val dev = btDevices[idx]
         val tName = if (transport == Transport.BLE) "ble" else "spp"
         val needsPair = transport == Transport.SPP && dev.bondState != BluetoothDevice.BOND_BONDED
-        txtPm3.text = if (needsPair) "pairing…" else "connecting…"
+        txtPm3.text = if (needsPair) "pairing…" else "connecting…"; pm3Dot(COL_AMBER)
         Thread {
             try {
                 link?.close(); link = null
@@ -491,9 +535,11 @@ class MainActivity : AppCompatActivity() {
                 val pm3 = connectBt(tName, dev.address)
                 link = pm3
                 main.post { txtPm3.text = "connected ($tName)" }
+                pm3Dot(COL_GREEN)
                 log("PM3 connected over $tName (${dev.address})")
             } catch (e: Exception) {
                 main.post { txtPm3.text = "connect failed" }
+                pm3Dot(COL_RED)
                 log("BT connect error: ${e.message}")
             }
         }.start()
@@ -526,7 +572,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         relayRunning = true
-        btnStart.text = "STOP"
+        setBtnRelay(true)
         val w = Thread {
             try {
                 while (relayRunning) {
@@ -535,9 +581,10 @@ class MainActivity : AppCompatActivity() {
                         // reconnect the Proxmark and keep going — self-healing so the relay survives
                         // link blips without a force-stop (which would wedge the PM5 BWM).
                         log("PM3 link dropped — reconnecting…")
+                        txtPm3Post("reconnecting…"); pm3Dot(COL_AMBER)
                         try { l?.close() } catch (_: Exception) {}
                         val tr = autoTransport; val mc = autoMac
-                        if (tr == null || mc == null) { log("no reconnect params — stopping"); break }
+                        if (tr == null || mc == null) { log("no reconnect params — stopping"); txtPm3Post("disconnected"); pm3Dot(COL_RED); break }
                         var rel: Pm3Link? = null
                         var tries = 0
                         while (relayRunning && rel == null) {
@@ -550,6 +597,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         if (rel == null) break
                         l = rel; link = rel
+                        txtPm3Post("connected ($tr)"); pm3Dot(COL_GREEN)
                         log("PM3 reconnected over $tr after $tries try(s)")
                         continue
                     }
@@ -584,7 +632,7 @@ class MainActivity : AppCompatActivity() {
                             if (!ok) break
                         }
                         log("peer connected")
-                        peer("connected")
+                        peer("connected"); peerDot(COL_GREEN)
 
                         // 2) Now reset the PM3 into its mode-select loop (RESTART frame) before we
                         //    send READ/CARD. Retry a few times so a single flaky USB write doesn't
@@ -638,7 +686,7 @@ class MainActivity : AppCompatActivity() {
                             } else if (rttMs > MAX_RTT_MS) {
                                 log("LINK TOO SLOW (~${rttMs} ms > ${MAX_RTT_MS} ms). The card's frame-wait is ~155 ms, so it will drop mid-auth. Use a DIRECT path — same Wi-Fi / phone hotspot, or Tailscale direct (not a DERP relay) — then it re-arms automatically.")
                                 status("link too slow: ${rttMs} ms")
-                                peer("too slow ${rttMs} ms")
+                                peer("too slow ${rttMs} ms"); peerDot(COL_RED)
                             } else {
                                 val rttNote = " · ${rttMs} ms"
                                 peer("connected$rttNote")
@@ -665,8 +713,8 @@ class MainActivity : AppCompatActivity() {
                 }
             } finally {
                 relayRunning = false; engine = null; net = null; worker = null
-                main.post { btnStart.text = "START RELAY" }
-                status("idle"); peer("—")
+                setBtnRelay(false)
+                status("idle"); peer("—"); peerDot(COL_GREY)
             }
         }
         worker = w; w.start()
@@ -682,7 +730,7 @@ class MainActivity : AppCompatActivity() {
         val cmd = intent?.getStringExtra("bb_cmd")?.lowercase() ?: return
         log("automation: cmd=$cmd")
         when (cmd) {
-            "stop" -> stopRelay()
+            "stop" -> { stopRelay(); try { link?.close() } catch (_: Exception) {}; link = null }
             "scan" -> bleScan()
             "start" -> {
                 val role = intent.getStringExtra("bb_role") ?: "card"
@@ -707,17 +755,17 @@ class MainActivity : AppCompatActivity() {
                     while (connecting && pm3 == null) {
                         tries++
                         try {
-                            txtPm3Post("connecting $transport… (try $tries)")
+                            txtPm3Post("connecting $transport… (try $tries)"); pm3Dot(COL_AMBER)
                             pm3 = connectAuto(transport, mac)
                         } catch (e: Exception) {
                             log("automation: connect try $tries failed: ${e.message}")
-                            txtPm3Post("waiting for $transport… ($tries)")
+                            txtPm3Post("waiting for $transport… ($tries)"); pm3Dot(COL_AMBER)
                             var w = 0; while (connecting && w < 3000) { try { Thread.sleep(200) } catch (_: Exception) {}; w += 200 }
                         }
                     }
                     if (pm3 != null && connecting) {
                         link = pm3
-                        txtPm3Post("connected ($transport)")
+                        txtPm3Post("connected ($transport)"); pm3Dot(COL_GREEN)
                         log("automation: PM3 connected over $transport ($mac) after $tries try(s)")
                         main.post { if (worker == null) toggleRelay() }
                     } else {
