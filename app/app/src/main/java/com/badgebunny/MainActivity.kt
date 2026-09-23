@@ -534,6 +534,7 @@ class MainActivity : AppCompatActivity() {
                 if (transport == Transport.SPP) ensureBonded(dev)
                 val pm3 = connectBt(tName, dev.address)
                 link = pm3
+                autoTransport = tName; autoMac = dev.address
                 main.post { txtPm3.text = "connected ($tName)" }
                 pm3Dot(COL_GREEN)
                 log("PM3 connected over $tName (${dev.address})")
@@ -738,16 +739,13 @@ class MainActivity : AppCompatActivity() {
                 val mac = intent.getStringExtra("bb_mac")
                 val peer = intent.getStringExtra("bb_peer")
                 val isCard = role.lowercase().startsWith("c")
-                if (worker != null) { log("automation: relay already running — send bb_cmd stop first"); return }
                 if (transport.lowercase() != "usb" && mac.isNullOrBlank()) { log("automation: bb_mac required for $transport"); return }
+                if (worker != null) { log("automation: stopping existing relay first…"); stopRelay() }
                 log("automation: start role=$role transport=$transport mac=$mac peer=$peer")
                 main.post { findViewById<RadioGroup>(R.id.roleGroup).check(if (isCard) R.id.radReader else R.id.radEmulator) }
                 autoPeerIp = peer; autoTransport = transport; autoMac = mac
                 Thread {
-                    // Keep trying to connect the Proxmark until it appears. A PM5 that has
-                    // auto-powered-off or a BWM that briefly wedges simply isn't advertising yet;
-                    // retrying means the relay arms itself the moment the device is back on, with
-                    // no need to re-issue the command. bb_cmd stop clears `connecting` to bail out.
+                    awaitWorkerDead()
                     acquireLocks()
                     connecting = true
                     var pm3: Pm3Link? = null
@@ -897,17 +895,13 @@ class MainActivity : AppCompatActivity() {
         worker?.interrupt()
         releaseLocks()
         pm3Dot(COL_GREY)
-        val w = worker
-        if (w != null) {
-            Thread {
-                try { w.join(3000) } catch (_: Exception) {}
-                if (worker === w) {
-                    worker = null
-                    setBtnRelay(false)
-                    status("idle"); peer("—"); peerDot(COL_GREY)
-                    log("worker watchdog: force-cleared stale thread")
-                }
-            }.start()
-        }
+        setBtnRelay(false)
+        status("idle"); peer("—"); peerDot(COL_GREY)
+    }
+
+    private fun awaitWorkerDead(timeoutMs: Long = 5000) {
+        val w = worker ?: return
+        try { w.join(timeoutMs) } catch (_: Exception) {}
+        if (!w.isAlive) worker = null
     }
 }
