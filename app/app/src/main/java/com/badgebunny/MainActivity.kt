@@ -610,10 +610,8 @@ class MainActivity : AppCompatActivity() {
                     val n = RelayLink()
                     net = n
                     try {
-                        // 1) Open the phone-to-phone socket FIRST. Previously we reset the PM3 before
-                        //    this; a slow/flaky USB reset (seen taking ~18 s) held the listener closed,
-                        //    so the peer's connect() attempts failed the whole time and it looked like
-                        //    the tunnel never formed. Bind immediately → the peer connects at once.
+                        // Open the phone-to-phone socket BEFORE resetting the PM3 — a slow USB
+                        // reset can hold the listener closed for seconds, blocking the peer.
                         if (listen) {
                             n.bindListener(port)
                             status("listening :$port…")

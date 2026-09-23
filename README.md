@@ -12,6 +12,7 @@ Seos cannot be cloned; it can be relayed.
 - `firmware/` — Proxmark build configs and PM5 patches (BWM BLE transport + standalone enable).
 - `phone/` — device debloat/restore scripts (Galaxy A16).
 - `docs/` — architecture and the end-to-end test runbook.
+- `RESEARCH.md` — background, references, timing constraints, and observed relay behavior.
 
 ## Quick start
 1. Flash both Proxmarks — `firmware/README.md`.
