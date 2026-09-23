@@ -3,6 +3,7 @@ package com.badgebunny.bt
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
+import com.badgebunny.log.BbLog
 import com.badgebunny.transport.CardhopperCodec
 import com.badgebunny.transport.Pm3Link
 import java.util.UUID
@@ -26,12 +27,20 @@ class Pm3Bluetooth : Pm3Link {
         val s = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
         s.connect()
         socket = s
+        BbLog.d("BB.BT", "RFCOMM connected, triggering standalone mode")
+        s.outputStream.write(Pm3Link.CMD_STANDALONE_NG)
+        s.outputStream.flush()
+        Thread.sleep(500)
+        BbLog.d("BB.BT", "CardhopperCodec ready")
         codec = CardhopperCodec(s.inputStream, s.outputStream)
     }
 
     override fun isConnected(): Boolean = socket?.isConnected == true
     override fun sendFrame(payload: ByteArray) = (codec ?: error("BT not connected")).sendFrame(payload)
     override fun recvFrame(): ByteArray = (codec ?: error("BT not connected")).recvFrame()
+    override fun drainInput() { codec?.drain() }
+    // reset() uses the Pm3Link default (sends the cardhopper RESTART frame).
+
     override fun close() {
         try { socket?.close() } catch (_: Exception) {}
         socket = null; codec = null

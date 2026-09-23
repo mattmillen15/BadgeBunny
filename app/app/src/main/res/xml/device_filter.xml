@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Proxmark3 / PM3 Easy (Iceman firmware): VID 0x9AC4 (39620), PID 0x4B8F (19343).
+         Vendor-only match also covers bootloader/variant PIDs. Attaching a matching device
+         auto-grants USB permission (and can launch the app), so the wired path is hands-free. -->
+    <usb-device vendor-id="39620" product-id="19343" />
+    <usb-device vendor-id="39620" />
+</resources>

@@ -19,7 +19,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="BadgeBunny"
-            app:subtitle="SEOS relay"
+            app:subtitle="Seos relay · USB"
             app:titleTextColor="@color/cs_text"
             app:subtitleTextColor="@color/cs_muted" />
     </com.google.android.material.appbar.AppBarLayout>
@@ -54,26 +54,18 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 2 · Proxmark -->
+            <!-- 2 · Proxmark (USB) -->
             <com.google.android.material.card.MaterialCardView style="@style/CsCard">
                 <LinearLayout android:orientation="vertical"
                     android:layout_width="match_parent" android:layout_height="wrap_content">
                     <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="2 · PROXMARK" />
-                    <RadioGroup android:id="@+id/transportGroup" android:orientation="horizontal"
-                        android:layout_width="match_parent" android:layout_height="wrap_content">
-                        <RadioButton android:id="@+id/radBt"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="BT (RDV4)" android:checked="true" />
-                        <RadioButton android:id="@+id/radBle"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp" android:text="BLE (PM5)" />
-                        <RadioButton android:id="@+id/radUsb"
-                            android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp" android:text="USB (PM5)" />
-                    </RadioGroup>
+                    <Spinner android:id="@+id/spinnerTransport"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:backgroundTint="@color/cs_muted" />
                     <Spinner android:id="@+id/spinnerDevices"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
                         android:backgroundTint="@color/cs_muted" />
                     <LinearLayout android:orientation="horizontal"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -94,25 +86,39 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 3 · Peer -->
+            <!-- 3 · Peer (Tailscale) -->
             <com.google.android.material.card.MaterialCardView style="@style/CsCard">
                 <LinearLayout android:orientation="vertical"
                     android:layout_width="match_parent" android:layout_height="wrap_content">
                     <TextView style="@style/CsSectionTitle" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" android:text="3 · CONNECT TO PEER" />
+                        android:layout_height="wrap_content" android:text="3 · PEER (TAILSCALE)" />
                     <TextView android:id="@+id/txtMyIps" style="@style/CsLabel"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:textSize="12sp" android:textColor="@color/cs_accent"
-                        android:text="detecting IPs…" />
+                        android:text="detecting Tailscale IP…" />
+                    <Spinner android:id="@+id/spinnerPeers"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:backgroundTint="@color/cs_muted" />
                     <EditText android:id="@+id/editPeer"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:hint="Other phone's IP"
+                        android:layout_marginTop="4dp"
+                        android:hint="100.x.x.x (peer's Tailscale IP)"
                         android:inputType="text" android:textColor="@color/cs_text"
-                        android:textColorHint="@color/cs_muted" />
-                    <TextView android:id="@+id/txtPeerStatus" style="@style/CsLabel"
+                        android:textColorHint="@color/cs_muted"
+                        android:visibility="gone" />
+                    <LinearLayout android:orientation="horizontal"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp" android:text="peer: —" />
+                        android:layout_marginTop="6dp" android:gravity="center_vertical">
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnDiscoverPeers"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Discover" />
+                        <TextView android:id="@+id/txtPeerStatus" style="@style/CsLabel"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp" android:text="peer: —" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
