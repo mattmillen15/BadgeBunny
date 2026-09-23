@@ -321,6 +321,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectUsb() {
+        connecting = false
         if (usbDrivers.isEmpty()) { toast("No USB device — plug Proxmark via OTG then Scan"); return }
         val idx = spinnerDevices.selectedItemPosition
         if (idx !in usbDrivers.indices) { toast("Pick a device"); return }
@@ -346,6 +347,7 @@ class MainActivity : AppCompatActivity() {
                 val u = Pm3Usb(usbManager(), driver, portIndex)
                 u.open()
                 link = u
+                autoTransport = "usb"; autoMac = null
                 main.post { txtPm3.text = "connected (USB p$portIndex)" }
                 pm3Dot(COL_GREEN)
                 log("PM3 connected (USB port $portIndex)")
@@ -359,6 +361,7 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- transport selection (USB / Bluetooth) ----------
     private fun onTransportChanged() {
+        connecting = false
         val hint = when (transport) {
             Transport.USB -> "(tap Scan for USB devices)"
             Transport.BLE -> "(tap Scan for BLE devices — PM5)"
@@ -522,6 +525,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectBtSelected() {
+        connecting = false
         val idx = spinnerDevices.selectedItemPosition
         if (idx !in btDevices.indices) { toast("Scan and pick a device"); return }
         val dev = btDevices[idx]
@@ -585,7 +589,7 @@ class MainActivity : AppCompatActivity() {
                         txtPm3Post("reconnecting…"); pm3Dot(COL_AMBER)
                         try { l?.close() } catch (_: Exception) {}
                         val tr = autoTransport; val mc = autoMac
-                        if (tr == null || mc == null) { log("no reconnect params — stopping"); txtPm3Post("disconnected"); pm3Dot(COL_RED); break }
+                        if (tr == null) { log("no reconnect params — stopping"); txtPm3Post("disconnected"); pm3Dot(COL_RED); break }
                         var rel: Pm3Link? = null
                         var tries = 0
                         while (relayRunning && rel == null) {
