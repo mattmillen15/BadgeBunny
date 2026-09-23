@@ -2,6 +2,7 @@ package com.badgebunny.relay
 
 import com.badgebunny.log.BbLog
 import com.badgebunny.net.RelayLink
+import java.net.SocketTimeoutException
 
 enum class Role { READER, EMULATOR }
 
@@ -51,6 +52,14 @@ class RelayEngine(
 
     fun stop() { running = false; BbLog.d(T, "stop() called") }
 
+    private fun recvOrTimeout(): RelayLink.Msg? {
+        while (running) {
+            try { return net.recv() }
+            catch (_: SocketTimeoutException) { /* retry if still running */ }
+        }
+        return null
+    }
+
     private fun clamp(v: Int) = if (v > 14) 14 else if (v < 0) 0 else v
 
     @Throws(Exception::class)
@@ -84,7 +93,7 @@ class RelayEngine(
         log("READER: relaying APDUs to the card…")
         var errStreak = 0
         while (running) {
-            val m = net.recv()
+            val m = recvOrTimeout() ?: break
             if (m.type == RelayLink.ERR) { log("peer signalled end"); break }
             pm3.sendFrame(m.payload)
             val resp = pm3.recvFrame()
@@ -111,10 +120,12 @@ class RelayEngine(
         pm3.sendFrame(byteArrayOf(tagType.toByte()))
         pm3.sendFrame(byteArrayOf(clamp(fwi).toByte(), clamp(sfgi).toByte()))
         log("EMULATOR: waiting for UID/ATS from peer…")
-        val uidMsg = net.recv(); if (uidMsg.type == RelayLink.ERR) { log("peer signalled end"); return }
+        val uidMsg = recvOrTimeout() ?: return
+        if (uidMsg.type == RelayLink.ERR) { log("peer signalled end"); return }
         pm3.sendFrame(uidMsg.payload)
         log("EMULATOR: UID = ${uidMsg.payload.hex()}")
-        val atsMsg = net.recv(); if (atsMsg.type == RelayLink.ERR) { log("peer signalled end"); return }
+        val atsMsg = recvOrTimeout() ?: return
+        if (atsMsg.type == RelayLink.ERR) { log("peer signalled end"); return }
         pm3.sendFrame(atsMsg.payload)
         log("EMULATOR: ATS = ${atsMsg.payload.hex()}  (FWI=${clamp(fwi)} SFGI=${clamp(sfgi)} tagType=$tagType)")
         log("EMULATOR: present the Proxmark to the reader…")
@@ -122,7 +133,7 @@ class RelayEngine(
         while (running) {
             val apdu = pm3.recvFrame()
             net.sendMsg(RelayLink.APDU, apdu)
-            val resp = net.recv()
+            val resp = recvOrTimeout() ?: break
             if (resp.type == RelayLink.ERR) { log("peer signalled end"); break }
 
             // RATS asymmetry (matches hf_cardhopper become_card's no_reply path). The reader-side

@@ -730,7 +730,7 @@ class MainActivity : AppCompatActivity() {
         val cmd = intent?.getStringExtra("bb_cmd")?.lowercase() ?: return
         log("automation: cmd=$cmd")
         when (cmd) {
-            "stop" -> { stopRelay(); try { link?.close() } catch (_: Exception) {}; link = null }
+            "stop" -> stopRelay()
             "scan" -> bleScan()
             "start" -> {
                 val role = intent.getStringExtra("bb_role") ?: "card"
@@ -892,7 +892,22 @@ class MainActivity : AppCompatActivity() {
         connecting = false
         engine?.stop()
         try { net?.close() } catch (_: Exception) {}
+        try { link?.close() } catch (_: Exception) {}
+        link = null
         worker?.interrupt()
         releaseLocks()
+        pm3Dot(COL_GREY)
+        val w = worker
+        if (w != null) {
+            Thread {
+                try { w.join(3000) } catch (_: Exception) {}
+                if (worker === w) {
+                    worker = null
+                    setBtnRelay(false)
+                    status("idle"); peer("—"); peerDot(COL_GREY)
+                    log("worker watchdog: force-cleared stale thread")
+                }
+            }.start()
+        }
     }
 }

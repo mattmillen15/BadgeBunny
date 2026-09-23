@@ -6,6 +6,7 @@ import java.io.DataOutputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 
 /**
  * Phone-to-phone relay link. One side listens (server), the other connects.
@@ -51,10 +52,18 @@ class RelayLink {
     @Throws(Exception::class)
     fun acceptPeer() {
         val ss = server ?: throw IllegalStateException("listener not bound")
-        val s = ss.accept()
-        s.tcpNoDelay = true
-        BbLog.d(T, "accepted connection from ${s.remoteSocketAddress}")
-        bind(s)
+        ss.soTimeout = 30_000
+        while (true) {
+            try {
+                val s = ss.accept()
+                s.tcpNoDelay = true
+                BbLog.d(T, "accepted connection from ${s.remoteSocketAddress}")
+                bind(s)
+                return
+            } catch (_: SocketTimeoutException) {
+                if (ss.isClosed) throw SocketTimeoutException("server closed")
+            }
+        }
     }
 
     @Throws(Exception::class)
@@ -71,6 +80,7 @@ class RelayLink {
     }
 
     private fun bind(s: Socket) {
+        s.soTimeout = 30_000
         socket = s
         din = DataInputStream(s.getInputStream())
         dout = DataOutputStream(s.getOutputStream())
@@ -96,7 +106,11 @@ class RelayLink {
     fun recv(): Msg {
         val i = din ?: throw IllegalStateException("relay not connected")
         BbLog.d(T, "recv: waiting…")
-        val type = i.readUnsignedByte()
+        val type: Int
+        while (true) {
+            try { type = i.readUnsignedByte(); break }
+            catch (_: SocketTimeoutException) { throw SocketTimeoutException("relay recv timed out") }
+        }
         val len = i.readUnsignedShort()
         val payload = ByteArray(len)
         if (len > 0) i.readFully(payload)
@@ -153,6 +167,8 @@ class RelayLink {
     }
 
     fun close() {
+        try { socket?.shutdownInput() } catch (_: Exception) {}
+        try { socket?.shutdownOutput() } catch (_: Exception) {}
         try { socket?.close() } catch (_: Exception) {}
         try { server?.close() } catch (_: Exception) {}
         socket = null; server = null; din = null; dout = null
